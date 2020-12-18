@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ConfParserStarter": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
