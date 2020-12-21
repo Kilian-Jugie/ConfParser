@@ -1,3 +1,9 @@
+/*
+* Copyright (C) 2020 Kilian Jugie - All Rights Reserved
+* Unauthorized copying of this file, via any medium is strictly prohibited
+* Proprietary and confidential
+*/
+
 #include "confinstance.hpp"
 #include "conftype.hpp"
 #include "conffunction.hpp"
