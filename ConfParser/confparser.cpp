@@ -4,24 +4,24 @@
 * Proprietary and confidential
 */
 
+#include "global.hpp"
 #include "confparser.hpp"
+#include "confscope.hpp"
+#include "conftype.hpp"
+#include "confoperator.hpp"
+#include "confscopeable.hpp"
+#include "confinstance.hpp"
 #include <fstream>
 #include <sstream>
-#include <array>
 #include <cwctype>
-#include <assert.h>
-#include <filesystem>
+
+#include <cassert>
 
 namespace confparser {
 	std::unordered_map<string_t, ApplySpecialFunction_t> ConfParser::SpecialTokensMap;
 	std::unordered_map<string_t, ApplyKeywordFunction_t> ConfParser::KeywordsMap;
 	ConfScope* ConfParser::IntrinsicScope = nullptr;
 	ConfScope* ConfParser::GlobalScope = nullptr;
-
-	ConfType* ConfScope::DefaultStringType = nullptr;
-	ConfType* ConfScope::DefaultIntegerType = nullptr;
-	ConfType* ConfScope::DefaultDecimalType = nullptr;
-	ConfType* ConfScope::DefaultObjectType = nullptr;
 
 	//TODO: uniformization ?
 	void removeCariageReturn(string_t& str) {
@@ -41,6 +41,39 @@ namespace confparser {
 	//TODO: uniformization ?
 	string_t unStringify(const string_t& str) {
 		return str.substr(1, str.size() - 2);
+	}
+
+	std::vector<string_t> advsplit(const string_t& from, const string_t& filters) {
+		static constexpr wchar_t includeChar = L'^', skipChar = L'$';
+		bool exclude = false;
+		std::vector<string_t> ret;
+		ret.push_back({});
+		const string_t::const_iterator fend{ filters.end() };
+		for (string_t::const_iterator it{ from.begin() }; it != from.end(); ++it) {
+			for (string_t::const_iterator fit{ filters.begin() }; fit != fend; ++fit) {
+				if (*fit == includeChar || *fit == skipChar) continue;
+				if (*it == *fit) {
+					//TODO: Rework
+					if ((fit != filters.begin() && *(fit - 1) == skipChar) || !ret[ret.size() - 1].empty())
+						ret.push_back({});
+					if (fit != filters.begin() && *(fit - 1) == includeChar) {
+						ret[ret.size() - 1] = string_t(&(*fit), 1);
+						ret.push_back({});
+					}
+					exclude = true;
+				}
+			}
+			if (!exclude) ret[ret.size() - 1] += *it;
+			else exclude = false;
+		}
+		return ret;
+	}
+
+	void trim(string_t& str) {
+		//TODO: isspace
+		//TODO: One pass ?
+		while (str.size() > 0 && (str[0] == ' ' || str[0] == '\t')) str.erase(str.begin());
+		while (str.size() > 0 && (str[str.size()-1] == ' ' || str[str.size() - 1] == '\t')) str.erase(str.end()-1);
 	}
 
 	std::vector<string_t> operatorSplitter(string_t expr) {
@@ -66,7 +99,7 @@ namespace confparser {
 				}
 				ret[ret.size() - 1] += ch;
 				hasAlnum = true;
-				
+
 			}
 			else if (std::find(std::begin(TOKENS_CHARS_SUR_OPS), std::end(TOKENS_CHARS_SUR_OPS), ch)
 				!= std::end(TOKENS_CHARS_SUR_OPS)) {
@@ -94,24 +127,15 @@ namespace confparser {
 		return ret;
 	}
 
-	class OperatorParserOperation {
-		ConfFunctionExtrinsicOperator* m_Operator;
-		std::vector<int> m_OperandIndexes;
-		int m_InstanceIndex;
-	public:
-		OperatorParserOperation(ConfFunctionExtrinsicOperator* op, int inst, std::vector<int> operands):
-			m_Operator{ op }, m_InstanceIndex{ inst }, m_OperandIndexes{ std::move(operands) } {}
-	};
-
 	void threatOp(std::vector< ConfScopeable*>& line,
 		ConfFunctionExtrinsicOperator* op, std::size_t opIndex) {
 		switch (op->GetOpType()) {
 		case ConfOperatorType::MID: {
-			ConfScopeable* f, *s;
+			ConfScopeable* f, * s;
 			f = line[opIndex - 1];
 			s = line[opIndex + 1];
 			line.erase(line.begin() + (opIndex - 1), line.begin() + (opIndex + 2));
-			line.insert(line.begin() + (opIndex - 1), op->Call((ConfInstance*)f, {(ConfInstance*)s}) );
+			line.insert(line.begin() + (opIndex - 1), op->Call((ConfInstance*)f, { (ConfInstance*)s }));
 			if (f->IsTemp()) CP_SF(f);
 			if (s->IsTemp()) CP_SF(s);
 		}break;
@@ -128,28 +152,28 @@ namespace confparser {
 
 	//TODO: PRE, SUB, MID support
 	ConfInstance* operatorParser(ConfScope* scope,
-		std::unordered_map<int, std::vector<std::vector<string_t>>>& parenthetized, int depth=0, int offset=0) {
+		std::unordered_map<int, std::vector<std::vector<string_t>>>& parenthetized, int depth = 0, int offset = 0) {
 		std::vector< ConfScopeable*> currentLine = { };
 		for (auto& token : parenthetized[depth][offset]) {
 			if (token.empty()) continue;
 			if (token[0] == '$') {
 				currentLine.push_back(
-					operatorParser(scope, parenthetized, depth + 1, token[1] - CP_TEXT('0')) );
+					operatorParser(scope, parenthetized, depth + 1, token[1] - CP_TEXT('0')));
 			}
 			else {
 				ConfScopeable* inst = scope->GetByName(token, CodeObjectType::INSTANCE);
-				
+
 				if (!inst) {
 					inst = scope->InstanceFromRValue(token);
 				}
-				if (!inst && currentLine.size() > 0 && currentLine[currentLine.size()-1]->GetCodeObjectType()
+				if (!inst && currentLine.size() > 0 && currentLine[currentLine.size() - 1]->GetCodeObjectType()
 					!= CodeObjectType::FUNCTION) {
 					ConfInstance* _this = (ConfInstance*)currentLine[currentLine.size() - 1];
 					ConfFunctionExtrinsicOperator* op = reinterpret_cast<ConfFunctionExtrinsicOperator*>(
 						_this->GetFunction(TOKEN_STRING_PREFIX_OPERATOR + token));
 					inst = reinterpret_cast<ConfScopeable*>(op);
 				}
-				if(!inst) {
+				if (!inst) {
 					//Deprecated ?
 					//non code object value ! marked as rvalue because temporary
 					inst = new ConfInstance(nullptr, token);
@@ -165,11 +189,11 @@ namespace confparser {
 					if (op->GetPriority() == 1) {
 						threatOp(currentLine, op, currentLine.size() - 2);
 					}
-					
+
 				}
 			}
 		}
-		
+
 		while (currentLine.size() > 1) {
 			ConfFunctionExtrinsicOperator* currentOp = nullptr;
 			std::size_t opIndex = 0, i = 0;
@@ -199,109 +223,11 @@ namespace confparser {
 			else if (e == L")") {
 				--depth;
 				parenthetized[depth][parenthetized[depth].size() - 1].push_back(
-					(L"$" + std::to_wstring(parenthetized[depth+1].size()-1)));
+					(L"$" + cp_tostring(parenthetized[depth + 1].size() - 1)));
 			}
-			else parenthetized[depth][parenthetized[depth].size()-1].push_back(e);
+			else parenthetized[depth][parenthetized[depth].size() - 1].push_back(e);
 		}
 		return parenthetized;
-	}
-
-	std::vector<string_t> advsplit(const string_t& from, const string_t& filters) {
-		static constexpr wchar_t includeChar = L'^', skipChar = L'$';
-		bool exclude = false;
-		std::vector<string_t> ret;
-		ret.push_back({});
-		const string_t::const_iterator fend{ filters.end() };
-		for (string_t::const_iterator it{ from.begin() }; it != from.end(); ++it) {
-			for (string_t::const_iterator fit{ filters.begin() }; fit != fend; ++fit) {
-				if (*fit == includeChar || *fit == skipChar) continue;
-				if (*it == *fit) {
-					//TODO: Rework
-					if ((fit != filters.begin() && *(fit - 1) == skipChar) || !ret[ret.size() - 1].empty())
-						ret.push_back({});
-					if (fit != filters.begin() && *(fit - 1) == includeChar) {
-						ret[ret.size() - 1] = string_t(&(*fit), 1);
-						ret.push_back({});
-					}
-					exclude = true;
-				}
-			}
-			if (!exclude) ret[ret.size() - 1] += *it;
-			else exclude = false;
-		}
-		return ret;
-	}
-
-	//TODO: operators ?
-	//TODO: condition fusion ?
-	class FilterSplitFilter {
-	public:
-		using conditionfnc_t = bool(*)(char_t);
-
-		FilterSplitFilter(conditionfnc_t cond) {
-			m_FncList.push_back(cond);
-		}
-
-		FilterSplitFilter(char_t ch, bool keep=false) {
-			m_CharMap[ch] = keep;
-		}
-
-		FilterSplitFilter(const string_t& str, bool keep = false) {
-			for (const auto& it : str) m_CharMap[it] = keep;
-		}
-
-		FilterSplitFilter(const std::string &str, const std::vector<bool>& keep, bool keepDefault=false) {
-			for (int i{ 0 }; i < str.size(); ++i) {
-				m_CharMap[str[i]] = i < keep.size() ? keep[i] : keepDefault;
-			}
-		}
-
-		std::pair<bool,bool> check(char_t ch) {
-			for(const auto& it : m_FncList) {
-				if (it(ch)) return { true,false };
-			}
-			return m_CharMap.find(ch) != m_CharMap.end() ? std::make_pair(true, m_CharMap[ch] ) :
-				std::make_pair(false, false);
-		}
-
-	private:
-		std::unordered_map<char_t, bool> m_CharMap;
-		std::vector<conditionfnc_t> m_FncList;
-	};
-
-
-	//Here we need universal reference because some values are passed as rvalue reference & some as const
-	//lvalue references
-	//TODO: SFINAE !
-	template<typename _StrTy>
-		std::vector<string_t> filtersplit(_StrTy&& in, FilterSplitFilter condition,
-		bool useStrings = false, bool keepStringChar = false) {
-		std::vector<string_t> ret{ {CP_TEXT("")} };
-		bool isInString = false;
-		const auto end{ in.cend() };
-		for (auto it{ in.cbegin() }; it != end; ++it) {
-			if (useStrings && *it == TOKEN_CHAR_STRING) {
-				isInString ^= true;
-				if (keepStringChar) ret[ret.size() - 1].push_back(*it);
-			}
-			else if (isInString) ret[ret.size() - 1].push_back(*it);
-			else if (auto p = condition.check(*it); p.first) {
-				if (!ret[ret.size() - 1].empty()) ret.push_back(CP_TEXT(""));
-				if (p.second) {
-					ret[ret.size() - 1] = string_t(&*it, 1);
-					ret.push_back(CP_TEXT(""));
-				}
-			}
-			else ret[ret.size() - 1].push_back(*it);
-		}
-		return ret;
-	}
-
-	void trim(string_t& str) {
-		//TODO: isspace
-		//TODO: One pass ?
-		while (str.size() > 0 && (str[0] == ' ' || str[0] == '\t')) str.erase(str.begin());
-		while (str.size() > 0 && (str[str.size()-1] == ' ' || str[str.size() - 1] == '\t')) str.erase(str.end()-1);
 	}
 
 	void ConfParser::Initialize() {
@@ -333,6 +259,15 @@ namespace confparser {
 				(*currentScope)->AddChild(ty);
 				*currentScope = ty;
 		};
+	}
+
+	ConfScope* ConfParser::GetGlobalScope() {
+		if (!GlobalScope) GlobalScope = new ConfScope(GetIntrinsicScope());
+		return GlobalScope;
+	}
+
+	ConfParser::~ConfParser() {
+		if (IntrinsicScope) CP_SF(IntrinsicScope);
 	}
 
 	ConfScope* ConfParser::Parse(std::filesystem::path file, StringFormater_t format) {
@@ -392,194 +327,6 @@ namespace confparser {
 				if (r->IsTemp()) CP_SF(r);
 			}break;
 			}
-		}
-		return ret;
-	}
-
-	ConfScopeable* ConfInstance::Clone(string_t name, ConfScopeable* buf) const {
-		ConfInstance* ret = m_Type->CreateInstance(std::move(name));
-		ret->ClearSubInstances();
-		for (auto s : m_SubInstances) 
-			ret->AddSubInstance(static_cast<ConfInstance*>(s->Clone(s->GetName())));
-		return ret;
-	}
-
-	ConfInstance* ConfType::_CreateInstance(ConfType* type, string_t name) {
-		ConfInstance* inst = new ConfInstance(type, std::move(name));
-		for (auto c : type->GetChilds()) {
-			if (c->GetCodeObjectType() == CodeObjectType::INSTANCE) {
-				ConfInstance* subInst = static_cast<ConfInstance*>(c);
-				inst->AddSubInstance(subInst->GetType()->CreateInstance(c->GetName()));
-			}
-		}
-		return inst;
-	}
-
-	ConfScopeable* ConfType::Clone(string_t name, ConfScopeable* buf) const {
-		if (!buf) buf = new ConfType(name);
-		static_cast<ConfType*>(buf)->CreateInstanceCallback = CreateInstanceCallback;
-		return buf;
-	}
-
-	ConfInstance* ConfTypeString::_CreateStringInstance(ConfType* type, string_t name) {
-		return new ConfInstanceString(type, std::move(name));
-	}
-
-	ConfScopeable* ConfInstanceString::Clone(string_t name, ConfScopeable* buf) const {
-		auto r = static_cast<ConfInstanceString*>(
-			ConfInstance::Clone(std::move(name), buf));
-		r->Set(Get());
-		return r;
-	}
-
-	ConfInstance* ConfTypeInt::_CreateIntInstance(ConfType* type,  string_t name) {
-		return new ConfInstanceInt(type, std::move(name));
-	}
-
-	ConfScopeable* ConfInstanceInt::Clone(string_t name, ConfScopeable* buf) const {
-		auto r = static_cast<ConfInstanceInt*>(
-			ConfInstance::Clone(std::move(name), buf));
-		r->Set(Get());
-		return r;
-	}
-
-	ConfInstance* ConfTypeFloat::_CreateFloatInstance(ConfType* type,  string_t name) {
-		return new ConfInstanceFloat(type, std::move(name));
-	}
-
-	ConfScopeable* ConfInstanceFloat::Clone(string_t name, ConfScopeable* buf) const {
-		auto r = static_cast<ConfInstanceFloat*>(
-			ConfInstance::Clone(std::move(name), buf));
-		r->Set(Get());
-		return r;
-	}
-
-	ConfScope::~ConfScope() {
-		for (ConfScopeable* it : m_Childs) {
-			if (_ADDRESSOF(*it) == _ADDRESSOF(*ConfParser::GetIntrinsicScope())) continue;
-			CP_SF(it);
-		}
-	}
-
-	ConfScopeable* confparser::ConfScope::GetByName(const string_t& name, CodeObjectType filter) const {
-		for (const auto& c : m_Childs) {
-			if ((filter != CodeObjectType::NONE ? c->GetCodeObjectType() == filter : true)
-				&& c->GetName() == name)
-				return c;
-		}
-		if (m_Parent) return m_Parent->GetByName(name);
-		return nullptr;
-	}
-
-	void ConfScope::AddChild(ConfScopeable* child) {
-		m_Childs.push_back(child);
-	}
-
-	void ConfScope::SetDefaultStringType(ConfType* ty) {
-		DefaultStringType = ty;
-	}
-
-	void ConfScope::SetDefaultIntegerType(ConfType* ty) {
-		DefaultIntegerType = ty;
-	}
-
-	void ConfScope::SetDefaultDecimalType(ConfType* ty) {
-		DefaultDecimalType = ty;
-	}
-
-	void ConfScope::SetDefaultObjectType(ConfType* ty) {
-		DefaultObjectType = ty;
-	}
-
-	ConfType* ConfScope::TypeFromRValue(string_t rvalue) {
-		if (rvalue[0] == TOKEN_CHAR_STRING && rvalue[rvalue.size() - 1] == TOKEN_CHAR_STRING) {
-			return DefaultStringType;
-		}
-		try {
-			volatile double v = std::stof(rvalue);
-		}
-		catch (...) {
-			return nullptr;
-		}
-		if(rvalue.find(TOKEN_CHAR_DECIMAL) != string_t::npos)
-			return DefaultDecimalType;
-		return DefaultIntegerType;
-	}
-
-	ConfInstance* ConfScope::InstanceFromRValue(string_t rvalue) {
-		static std::size_t VCOUNT = 1;
-		ConfType* ty = TypeFromRValue(rvalue);
-		if (!ty) return nullptr;
-		ConfInstance* ret = nullptr;
-
-		char_t* fbuf = new char_t[32];
-		cp_snprintf_s(fbuf, 32, 32, CP_TEXT("__RSTRTMP_%zu"), VCOUNT++);
-
-		if (ty == DefaultStringType) {
-			ret = new ConfInstanceString(ty, string_t(fbuf));
-			static_cast<ConfInstanceString*>(ret)->Set(rvalue.substr(1, rvalue.size()-2));
-		}
-		else if (ty == DefaultIntegerType) {
-			ret = new ConfInstanceInt(ty, string_t(fbuf));
-			static_cast<ConfInstanceInt*>(ret)->Set(cp_atoi(rvalue.c_str()));
-		}
-		else if (ty == DefaultDecimalType) {
-			ret = new ConfInstanceFloat(ty, string_t(fbuf));
-			static_cast<ConfInstanceFloat*>(ret)->Set(cp_atof(rvalue.c_str()));
-		}
-		delete[] fbuf;
-		ret->SetTemp(true);
-		return ret;
-	}
-
-	ConfScope& ConfScope::operator+=(const ConfScope& scope) {
-
-		for (auto oc : scope.m_Childs ) {
-			auto c = GetByName(oc->GetName());
-
-			if (c) {
-				switch (c->GetCodeObjectType()) {
-				case CodeObjectType::INSTANCE:
-					*static_cast<ConfInstance*>(c) = *static_cast<ConfInstance*>(oc);
-					break;
-				case CodeObjectType::TYPE: 
-					__fallthrough;
-				case CodeObjectType::SCOPE:
-					*static_cast<ConfScope*>(c) += *static_cast<ConfScope*>(oc);
-					break;
-				default:
-					break;
-				}
-			}
-			else {
-				this->AddChild(oc->Clone(oc->GetName(), nullptr));
-			}
-
-		}
-		return *this;
-	}
-
-	ConfScopeable* ConfFunctionIntrinsic::Clone(string_t name, ConfScopeable* buf) const {
-		if (!buf) buf = new ConfFunctionIntrinsic(nullptr, name, m_Callback);
-		return buf;
-	}
-
-	ConfScopeable* ConfFunctionIntrinsicOperator::Clone(string_t name, ConfScopeable* buf) const {
-		if (!buf) buf = new ConfFunctionIntrinsicOperator(nullptr, name, m_Callback, m_Priority);
-		static_cast<ConfFunctionIntrinsicOperator*>(buf)->m_OpType = m_OpType;
-		return buf;
-	}
-
-	ConfScopeable* ConfScope::Clone(string_t name, ConfScopeable* buf) const {
-		if (!buf) buf = new ConfScope();
-		ConfScope* ret = static_cast<ConfScope*>(buf);
-		ret->m_Name = name;
-		ret->m_Parent = m_Parent;
-		ret->DefaultDecimalType = DefaultDecimalType;
-		ret->DefaultIntegerType = DefaultIntegerType;
-		ret->DefaultStringType = DefaultStringType;
-		for (auto c : m_Childs) {
-			ret->AddChild(c->Clone(c->GetName(), nullptr));
 		}
 		return ret;
 	}
