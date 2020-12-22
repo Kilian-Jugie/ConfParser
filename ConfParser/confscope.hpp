@@ -48,9 +48,6 @@ namespace confparser {
 			return DefaultObjectType;
 		}
 
-		ConfType* TypeFromRValue(string_t rvalue);
-		ConfInstance* InstanceFromRValue(string_t rvalue);
-
 		ConfScope& operator+=(const ConfScope& scope);
 
 		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;

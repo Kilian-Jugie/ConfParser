@@ -164,7 +164,11 @@ namespace confparser {
 				ConfScopeable* inst = scope->GetByName(token, CodeObjectType::INSTANCE);
 
 				if (!inst) {
-					inst = scope->InstanceFromRValue(token);
+					auto ty = ConfTypeIntrinsic::TypeFromExpression(token, nullptr);
+					if (ty && ty->GetName() != NAME_TYPE_EXPR) {
+						inst = ty->CreateInstance(token);
+						static_cast<ConfIntrinsicInstance*>(inst)->SetFromString(token);
+					}
 				}
 				if (!inst && currentLine.size() > 0 && currentLine[currentLine.size() - 1]->GetCodeObjectType()
 					!= CodeObjectType::FUNCTION) {
@@ -333,7 +337,7 @@ namespace confparser {
 
 	ConfScope* ConfParser::GetNewIntrinsicScope() {
 		ConfScope* ret = new ConfScope();
-		ConfType* tyStr = new ConfTypeString(TOKEN_STRING_TYPE_STRING);
+		ConfType* tyStr = new ConfTypeString();
 		auto tyStrSet = new ConfFunctionIntrinsicOperator(tyStr, CP_TEXT("operator="),
 			[](ConfInstance* _this, std::vector<ConfInstance*> parmeters) {
 				ConfInstanceString* strThis = static_cast<ConfInstanceString*>(_this);
@@ -345,7 +349,7 @@ namespace confparser {
 		ret->AddChild(tyStr);
 		ret->SetDefaultStringType(tyStr);
 
-		ConfType* tyInt = new ConfTypeInt(TOKEN_STRING_TYPE_INT);
+		ConfType* tyInt = new ConfTypeInt();
 		auto tyIntSet = new ConfFunctionIntrinsicOperator(tyInt, CP_TEXT("operator="),
 			[](ConfInstance* _this, std::vector<ConfInstance*> parameters) {
 				ConfInstanceInt* strThis = static_cast<ConfInstanceInt*>(_this);
@@ -392,7 +396,7 @@ namespace confparser {
 		ret->AddChild(tyInt);
 		ret->SetDefaultIntegerType(tyInt);
 
-		ConfType* tyFloat = new ConfTypeFloat(TOKEN_STRING_TYPE_FLOAT);
+		ConfType* tyFloat = new ConfTypeFloat();
 		auto tyFloSet = new ConfFunctionIntrinsicOperator(tyStr, CP_TEXT("operator="),
 			[](ConfInstance* _this, std::vector<ConfInstance*> parameters) {
 				ConfInstanceFloat* strThis = static_cast<ConfInstanceFloat*>(_this);
@@ -404,7 +408,7 @@ namespace confparser {
 		ret->AddChild(tyFloat);
 		ret->SetDefaultDecimalType(tyFloat);
 
-		ConfType* tyObject = new ConfTypeFloat(CP_TEXT("object"));
+		ConfType* tyObject = new ConfTypeObject();
 		auto tyObjDot = new ConfFunctionIntrinsicOperator(tyStr, CP_TEXT("operator."),
 			[](ConfInstance* _this, std::vector<ConfInstance*> parameters) {
 				for (auto c : _this->GetSubInstances())

@@ -61,11 +61,20 @@ namespace confparser {
 		}
 	};
 
-	class ConfInstanceString : public ConfInstance {
+	class ConfIntrinsicInstance : public ConfInstance {
+	public:
+		ConfIntrinsicInstance(ConfType* strType, string_t name) : ConfInstance{ strType,std::move(name) } {
+
+		}
+
+		virtual void SetFromString(const string_t& v);
+	};
+
+	class ConfInstanceString : public ConfIntrinsicInstance {
 		string_t m_Data;
 	public:
 		ConfInstanceString(ConfType* strType, string_t name) :
-			ConfInstance{ strType,std::move(name) }, m_Data{ CP_TEXT("") } {
+			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ CP_TEXT("") } {
 		}
 
 		void Set(string_t newData) {
@@ -83,13 +92,15 @@ namespace confparser {
 			m_Data = static_cast<ConfInstanceString*>(inst)->m_Data;
 			return *this;
 		}
+
+		virtual void SetFromString(const string_t& v) override;
 	};
 
-	class ConfInstanceInt : public ConfInstance {
+	class ConfInstanceInt : public ConfIntrinsicInstance {
 		int m_Data;
 	public:
 		ConfInstanceInt(ConfType* strType, string_t name) :
-			ConfInstance{ strType,std::move(name) }, m_Data{ 0 } {
+			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ 0 } {
 		}
 
 		void Set(int newData) {
@@ -107,13 +118,15 @@ namespace confparser {
 			m_Data = static_cast<ConfInstanceInt*>(inst)->m_Data;
 			return *this;
 		}
+
+		virtual void SetFromString(const string_t& v) override;
 	};
 
-	class ConfInstanceFloat : public ConfInstance {
+	class ConfInstanceFloat : public ConfIntrinsicInstance {
 		float m_Data;
 	public:
 		ConfInstanceFloat(ConfType* strType, string_t name) :
-			ConfInstance{ strType,std::move(name) }, m_Data{ 0.f } {
+			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ 0.f } {
 		}
 
 		void Set(float newData) {
@@ -131,6 +144,26 @@ namespace confparser {
 			m_Data = static_cast<ConfInstanceFloat*>(inst)->m_Data;
 			return *this;
 		}
+
+		virtual void SetFromString(const string_t& v) override;
 	};
 
+	class ConfInstanceObject : public ConfIntrinsicInstance {
+		ConfInstance* m_Data;
+	public:
+		ConfInstanceObject(ConfType* strType, string_t name) :
+			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ nullptr } {
+		}
+
+		void Set(ConfInstance* newData) {
+			m_Data = newData;
+		}
+
+		ConfInstance* Get() const {
+			return m_Data;
+		}
+
+		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
+		virtual void SetFromString(const string_t& v) override;
+	};
 }

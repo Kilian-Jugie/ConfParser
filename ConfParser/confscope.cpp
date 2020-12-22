@@ -52,47 +52,6 @@ namespace confparser {
 		DefaultObjectType = ty;
 	}
 
-	ConfType* ConfScope::TypeFromRValue(string_t rvalue) {
-		if (rvalue[0] == TOKEN_CHAR_STRING && rvalue[rvalue.size() - 1] == TOKEN_CHAR_STRING) {
-			return DefaultStringType;
-		}
-		try {
-			volatile double v = std::stof(rvalue);
-		}
-		catch (...) {
-			return nullptr;
-		}
-		if (rvalue.find(TOKEN_CHAR_DECIMAL) != string_t::npos)
-			return DefaultDecimalType;
-		return DefaultIntegerType;
-	}
-
-	ConfInstance* ConfScope::InstanceFromRValue(string_t rvalue) {
-		static std::size_t VCOUNT = 1;
-		ConfType* ty = TypeFromRValue(rvalue);
-		if (!ty) return nullptr;
-		ConfInstance* ret = nullptr;
-
-		char_t* fbuf = new char_t[32];
-		cp_snprintf_s(fbuf, 32, 32, CP_TEXT("__RSTRTMP_%zu"), VCOUNT++);
-
-		if (ty == DefaultStringType) {
-			ret = new ConfInstanceString(ty, string_t(fbuf));
-			static_cast<ConfInstanceString*>(ret)->Set(rvalue.substr(1, rvalue.size() - 2));
-		}
-		else if (ty == DefaultIntegerType) {
-			ret = new ConfInstanceInt(ty, string_t(fbuf));
-			static_cast<ConfInstanceInt*>(ret)->Set(cp_atoi(rvalue.c_str()));
-		}
-		else if (ty == DefaultDecimalType) {
-			ret = new ConfInstanceFloat(ty, string_t(fbuf));
-			static_cast<ConfInstanceFloat*>(ret)->Set(cp_atof(rvalue.c_str()));
-		}
-		delete[] fbuf;
-		ret->SetTemp(true);
-		return ret;
-	}
-
 	ConfScope& ConfScope::operator+=(const ConfScope& scope) {
 
 		for (auto oc : scope.m_Childs) {

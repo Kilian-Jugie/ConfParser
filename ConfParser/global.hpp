@@ -69,9 +69,7 @@ namespace confparser {
 
 	constexpr char_t TOKENS_STRING_KEYWORD_CLASS[] = CP_TEXT("class");
 
-	constexpr char_t TOKEN_STRING_TYPE_STRING[] = CP_TEXT("string");
-	constexpr char_t TOKEN_STRING_TYPE_INT[] = CP_TEXT("int");
-	constexpr char_t TOKEN_STRING_TYPE_FLOAT[] = CP_TEXT("float");
+	
 
 	enum class CodeObjectType {
 		TYPE,

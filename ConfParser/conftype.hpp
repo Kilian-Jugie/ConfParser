@@ -7,8 +7,15 @@
 #pragma once
 #include "global.hpp"
 #include "confscope.hpp"
+#include <unordered_map>
 
 namespace confparser {
+	constexpr char_t NAME_TYPE_STRING[] = CP_TEXT("string");
+	constexpr char_t NAME_TYPE_INT[] = CP_TEXT("int");
+	constexpr char_t NAME_TYPE_FLOAT[] = CP_TEXT("float");
+	constexpr char_t NAME_TYPE_OBJECT[] = CP_TEXT("object");
+	constexpr char_t NAME_TYPE_EXPR[] = CP_TEXT("expr");
+
 	class ConfType : public ConfScope {
 	protected:
 		using CreateInstance_t = ConfInstance * (*)(ConfType*, string_t);
@@ -34,30 +41,72 @@ namespace confparser {
 		ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
 	};
 
-	class ConfTypeString : public ConfType {
+	class ConfTypeIntrinsic : public ConfType {
+	protected:
+		static std::unordered_map<string_t, ConfTypeIntrinsic*> IntrinsicTypesRegistry;
+	public:
+		static const std::unordered_map<string_t, ConfTypeIntrinsic*>& GetTypesRegistry() {
+			return IntrinsicTypesRegistry;
+		}
+
+		ConfTypeIntrinsic(string_t name);
+		virtual int IsExprCompatible(string_t expr, ConfScope* scope);
+		static ConfTypeIntrinsic* TypeFromExpression(string_t expr, ConfScope* scope);
+		static ConfInstance* InstanceFromExpression(string_t expr, ConfScope* scope, string_t name);
+	};
+
+	class ConfTypeObject : public ConfTypeIntrinsic {
+	private:
+		static ConfInstance* _CreateObjectInstance(ConfType* type, string_t name);
+	public:
+		ConfTypeObject() : ConfTypeIntrinsic(NAME_TYPE_OBJECT) {
+			CreateInstanceCallback = _CreateObjectInstance;
+		}
+
+		virtual int IsExprCompatible(string_t expr, ConfScope* scope) override;
+	};
+
+	class ConfTypeString : public ConfTypeIntrinsic {
 	private:
 		static ConfInstance* _CreateStringInstance(ConfType* type, string_t name);
 	public:
-		ConfTypeString(string_t name) : ConfType(std::move(name)) {
+		ConfTypeString() : ConfTypeIntrinsic(NAME_TYPE_STRING) {
 			CreateInstanceCallback = _CreateStringInstance;
 		}
+
+		virtual int IsExprCompatible(string_t expr, ConfScope* scope) override;
 	};
 
-	class ConfTypeInt : public ConfType {
+	class ConfTypeInt : public ConfTypeIntrinsic {
 	private:
 		static ConfInstance* _CreateIntInstance(ConfType* type, string_t name);
 	public:
-		ConfTypeInt(string_t name) : ConfType(std::move(name)) {
+		ConfTypeInt() : ConfTypeIntrinsic(NAME_TYPE_INT) {
 			CreateInstanceCallback = _CreateIntInstance;
 		}
+
+		virtual int IsExprCompatible(string_t expr, ConfScope* scope) override;
 	};
 
-	class ConfTypeFloat : public ConfType {
+	class ConfTypeFloat : public ConfTypeIntrinsic {
 	private:
 		static ConfInstance* _CreateFloatInstance(ConfType* type, string_t name);
 	public:
-		ConfTypeFloat(string_t name) : ConfType(std::move(name)) {
+		ConfTypeFloat() : ConfTypeIntrinsic(NAME_TYPE_FLOAT) {
 			CreateInstanceCallback = _CreateFloatInstance;
 		}
+
+		virtual int IsExprCompatible(string_t expr, ConfScope* scope) override;
+	};
+
+	class ConfTypeExpr : public ConfTypeIntrinsic {
+	private:
+		static ConfInstance* _CreateExprInstance(ConfType* type, string_t name);
+	public:
+		ConfTypeExpr() : ConfTypeIntrinsic(NAME_TYPE_FLOAT) {
+			CreateInstanceCallback = _CreateExprInstance;
+		}
+
+		virtual int IsExprCompatible(string_t expr, ConfScope* scope) override;
 	};
 }
