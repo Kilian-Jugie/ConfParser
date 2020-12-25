@@ -39,15 +39,6 @@ namespace confparser {
 		ConfScopeable* GetByName(const string_t& name, CodeObjectType filter = CodeObjectType::NONE) const;
 		void AddChild(ConfScopeable* child);
 
-		static void SetDefaultStringType(ConfType* ty);
-		static void SetDefaultIntegerType(ConfType* ty);
-		static void SetDefaultDecimalType(ConfType* ty);
-		static void SetDefaultObjectType(ConfType* ty);
-
-		static ConfType* GetDefaultObjectType() {
-			return DefaultObjectType;
-		}
-
 		ConfScope& operator+=(const ConfScope& scope);
 
 		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
@@ -56,9 +47,5 @@ namespace confparser {
 		ConfScope* m_Parent;
 		std::vector<ConfScopeable*> m_Childs;
 		tokcallback_t m_TokenCallback;
-		static ConfType* DefaultStringType;
-		static ConfType* DefaultIntegerType;
-		static ConfType* DefaultDecimalType;
-		static ConfType* DefaultObjectType;
 	};
 }

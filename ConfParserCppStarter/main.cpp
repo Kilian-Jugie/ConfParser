@@ -6,6 +6,7 @@
 int main() {
 	confparser::ConfParser p;
 	auto d = p.Parse("test.conf");
-	std::wcout << d->GetName() << "\n";
+	for(const auto& it : d->GetChilds())
+		std::wcout << it->GetName() << "\n";
 	return 0;
 }

@@ -10,11 +10,6 @@
 #include <string>
 
 namespace confparser {
-	ConfType* ConfScope::DefaultStringType = nullptr;
-	ConfType* ConfScope::DefaultIntegerType = nullptr;
-	ConfType* ConfScope::DefaultDecimalType = nullptr;
-	ConfType* ConfScope::DefaultObjectType = nullptr;
-
 	ConfScope::~ConfScope() {
 		for (ConfScopeable* it : m_Childs) {
 			if (_ADDRESSOF(*it) == _ADDRESSOF(*ConfParser::GetIntrinsicScope())) continue;
@@ -34,22 +29,6 @@ namespace confparser {
 
 	void ConfScope::AddChild(ConfScopeable* child) {
 		m_Childs.push_back(child);
-	}
-
-	void ConfScope::SetDefaultStringType(ConfType* ty) {
-		DefaultStringType = ty;
-	}
-
-	void ConfScope::SetDefaultIntegerType(ConfType* ty) {
-		DefaultIntegerType = ty;
-	}
-
-	void ConfScope::SetDefaultDecimalType(ConfType* ty) {
-		DefaultDecimalType = ty;
-	}
-
-	void ConfScope::SetDefaultObjectType(ConfType* ty) {
-		DefaultObjectType = ty;
 	}
 
 	ConfScope& ConfScope::operator+=(const ConfScope& scope) {
@@ -85,9 +64,6 @@ namespace confparser {
 		ConfScope* ret = static_cast<ConfScope*>(buf);
 		ret->m_Name = name;
 		ret->m_Parent = m_Parent;
-		ret->DefaultDecimalType = DefaultDecimalType;
-		ret->DefaultIntegerType = DefaultIntegerType;
-		ret->DefaultStringType = DefaultStringType;
 		for (auto c : m_Childs) {
 			ret->AddChild(c->Clone(c->GetName(), nullptr));
 		}

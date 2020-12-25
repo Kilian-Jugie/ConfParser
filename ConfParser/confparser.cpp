@@ -259,7 +259,7 @@ namespace confparser {
 		KeywordsMap[TOKENS_STRING_KEYWORD_CLASS] = [](ConfParser* _this, ConfScope** currentScope,
 			const std::vector<string_t>& tokens) {
 				ConfType* ty = new ConfType(tokens[1], *currentScope);
-				*ty += *ConfScope::GetDefaultObjectType();
+				*ty += *(ConfTypeIntrinsic::GetTypesRegistry().at(NAME_TYPE_OBJECT));
 				(*currentScope)->AddChild(ty);
 				*currentScope = ty;
 		};
@@ -347,7 +347,6 @@ namespace confparser {
 		);
 		tyStr->AddChild(tyStrSet);
 		ret->AddChild(tyStr);
-		ret->SetDefaultStringType(tyStr);
 
 		ConfType* tyInt = new ConfTypeInt();
 		auto tyIntSet = new ConfFunctionIntrinsicOperator(tyInt, CP_TEXT("operator="),
@@ -394,7 +393,6 @@ namespace confparser {
 		tyInt->AddChild(tyIntSet);
 		tyInt->AddChild(tyIntAddSet);
 		ret->AddChild(tyInt);
-		ret->SetDefaultIntegerType(tyInt);
 
 		ConfType* tyFloat = new ConfTypeFloat();
 		auto tyFloSet = new ConfFunctionIntrinsicOperator(tyStr, CP_TEXT("operator="),
@@ -406,7 +404,6 @@ namespace confparser {
 		);
 		tyFloat->AddChild(tyFloSet);
 		ret->AddChild(tyFloat);
-		ret->SetDefaultDecimalType(tyFloat);
 
 		ConfType* tyObject = new ConfTypeObject();
 		auto tyObjDot = new ConfFunctionIntrinsicOperator(tyStr, CP_TEXT("operator."),
@@ -429,7 +426,6 @@ namespace confparser {
 		tyObject->AddChild(tyObjDot);
 		tyObject->AddChild(tyObjEqu);
 		ret->AddChild(tyObject);
-		ret->SetDefaultObjectType(tyObject);
 
 		return ret;
 	}

@@ -56,7 +56,10 @@ namespace confparser {
 			[](int i) { return std::isdigit(i) || i == '-' || i == '.'; }));
 		if (!isNum)
 			return -1;
-		if (expr.find_first_of('.') != string_t::npos) return 1000;
+		if (expr.find_first_of('.') != string_t::npos) {
+			if (expr.size() == 1) return -1; //if there is only a dot (operator.)
+			return 1000;
+		}
 		return 500;
 	}
 
