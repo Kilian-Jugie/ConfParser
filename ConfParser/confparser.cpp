@@ -372,7 +372,7 @@ namespace confparser {
 			}break;
 			}
 		}
-		return ret;<
+		return ret;
 	}
 
 	ConfScope* ConfParser::GetNewIntrinsicScope() {
