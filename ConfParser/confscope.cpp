@@ -3,6 +3,10 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
+/*!
+ * \file confscope.cpp
+ * \brief Scopes related implementations
+ */
 
 #include "confscope.hpp"
 #include "confparser.hpp"
@@ -12,6 +16,7 @@
 namespace confparser {
 	ConfScope::~ConfScope() {
 		for (ConfScopeable* it : m_Childs) {
+			//!\deprecated Intrinsic scope should not be any scope child but check needed
 			if (_ADDRESSOF(*it) == _ADDRESSOF(*ConfParser::GetIntrinsicScope())) continue;
 			CP_SF(it);
 		}
@@ -42,7 +47,7 @@ namespace confparser {
 					*static_cast<ConfInstance*>(c) = *static_cast<ConfInstance*>(oc);
 					break;
 				case CodeObjectType::TYPE:
-					__fallthrough;
+					[[fallthrough]];
 				case CodeObjectType::SCOPE:
 					*static_cast<ConfScope*>(c) += *static_cast<ConfScope*>(oc);
 					break;

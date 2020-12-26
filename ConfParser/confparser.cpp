@@ -3,6 +3,10 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
+/*!
+ * \file confparser.cpp
+ * \brief Main implementations and some parsers
+ */
 
 #include "global.hpp"
 #include "confparser.hpp"
@@ -14,7 +18,6 @@
 #include <fstream>
 #include <sstream>
 #include <cwctype>
-
 #include <cassert>
 
 namespace confparser {
@@ -23,7 +26,6 @@ namespace confparser {
 	ConfScope* ConfParser::IntrinsicScope = nullptr;
 	ConfScope* ConfParser::GlobalScope = nullptr;
 
-	//TODO: uniformization ?
 	void removeCariageReturn(string_t& str) {
 		for (string_t::iterator it{ str.begin() }; it != str.end(); ++it) {
 			if (*it == CP_TEXT('\r')) {
@@ -32,13 +34,11 @@ namespace confparser {
 		}
 	}
 
-	//TODO: uniformization ?
 	void unStringify(string_t& str) {
 		str.erase(str.begin(), str.begin() + 1);
 		str.erase(str.end() - 1);
 	}
 
-	//TODO: uniformization ?
 	string_t unStringify(const string_t& str) {
 		return str.substr(1, str.size() - 2);
 	}
@@ -70,12 +70,27 @@ namespace confparser {
 	}
 
 	void trim(string_t& str) {
-		//TODO: isspace
-		//TODO: One pass ?
 		while (str.size() > 0 && (str[0] == ' ' || str[0] == '\t')) str.erase(str.begin());
 		while (str.size() > 0 && (str[str.size()-1] == ' ' || str[str.size() - 1] == '\t')) str.erase(str.end()-1);
 	}
 
+	/*!
+	 * \brief Split a string by operators
+	 * \param expr The string to split
+	 * 
+	 * Tokens are threated as 4 types :
+	 *  - String literals
+	 *  - Surrounding operators
+	 *  - Other operators
+	 *  - Other chars
+	 * 
+	 * String literals are not splitted and kept as they are.
+	 * Surrounding operators are isolated in their own string ( [47] -> [ ; 45 ; ])
+	 * Other operators are split at their border : multiples non-alphanum chars
+	 * are kept as it (+=) but if an alphanum char is encountered, the string
+	 * is splitted (+=56 -> =+ ; 56).
+	 * Same rule apply on other chars but reversed (test+552 -> test ; + ; 552)
+	*/
 	std::vector<string_t> operatorSplitter(string_t expr) {
 		static constexpr char_t TOKENS_CHARS_SUR_OPS[] = CP_TEXT("()[]");
 		std::vector<string_t> ret;
@@ -127,6 +142,17 @@ namespace confparser {
 		return ret;
 	}
 
+	/*!
+	 * \brief Threat the operators of the line at index opIndex
+	 * \param line The parsed line where operator is
+	 * \param op The operator to apply
+	 * \param opIndex The index in line of the operator to apply
+	 * 
+	 * This function will call the operator, delete old values in line
+	 * and insert the new value at the correct space. This is done like
+	 * that to allow any type of operator (pre, mid, post, sur) to be
+	 * correctly handled
+	*/
 	void threatOp(std::vector< ConfScopeable*>& line,
 		ConfFunctionExtrinsicOperator* op, std::size_t opIndex) {
 		switch (op->GetOpType()) {
@@ -150,7 +176,17 @@ namespace confparser {
 		}
 	}
 
-	//TODO: PRE, SUB, MID support
+	/*!
+	* \brief Parse operators by their priorities
+	* \param scope The scope where the line was
+	* \param parenthetized The result of parenthesisOperatorParser where line was passed
+	* \param depth Recursive arg let as 0
+	* \param offset Recursive arg let as 0
+	* 
+	* \todo post, pre, sur compatibility !
+	* 
+	* This function calls threatOp to apply operators operations
+	*/
 	ConfInstance* operatorParser(ConfScope* scope,
 		std::unordered_map<int, std::vector<std::vector<string_t>>>& parenthetized, int depth = 0, int offset = 0) {
 		std::vector< ConfScopeable*> currentLine = { };
@@ -167,7 +203,7 @@ namespace confparser {
 					auto ty = ConfTypeIntrinsic::TypeFromExpression(token, nullptr);
 					if (ty && ty->GetName() != NAME_TYPE_EXPR) {
 						inst = ty->CreateInstance(token);
-						static_cast<ConfIntrinsicInstance*>(inst)->SetFromString(token);
+						((ConfInstance*)inst)->SetFromString(token);
 					}
 				}
 				if (!inst && currentLine.size() > 0 && currentLine[currentLine.size() - 1]->GetCodeObjectType()
@@ -185,7 +221,7 @@ namespace confparser {
 				}
 				currentLine.push_back(inst);
 				if (currentLine.size() > 2 && currentLine[currentLine.size() - 2]->GetCodeObjectType()
-					== CodeObjectType::FUNCTION) { //TODO: PRE, SUB, MID support
+					== CodeObjectType::FUNCTION) { //TODO: PRE, POST, MID support
 					//We must inline threat priority 1 operators because they can change the _left type
 					//Is this optimization ?
 					ConfFunctionExtrinsicOperator* op = (ConfFunctionExtrinsicOperator*)
@@ -216,7 +252,13 @@ namespace confparser {
 		return (ConfInstance*)(currentLine[0]);
 	}
 
-	//TODO: non joker string version ?
+	/*!
+	 * \brief Parse parenthesis to apply their priority
+	 * \param expression Expression to parse
+	 * 
+	 * \deprecated This function will be deleted when operatorParser could support sur operators
+	 * \todo non joker string version !
+	 */
 	std::unordered_map<int, std::vector<std::vector<string_t>>> parenthesisOperatorParser(
 		const std::vector<string_t>& expression) {
 		std::unordered_map<int, std::vector<std::vector<string_t>>> parenthetized;
@@ -292,7 +334,7 @@ namespace confparser {
 		for (auto& it : stext) {
 			trim(it);
 			if (it.empty()) continue;
-			string_t text = format ? format(it) : std::move(it); //No overhead haha
+			string_t text = format ? format(it) : std::move(it); //Is this really cost-free ?
 			std::vector<string_t> tokenizedText = filtersplit(text,
 				{ " =#%+-*/.", {false}, true}, true, true);
 			switch (text[0]) {
@@ -306,8 +348,6 @@ namespace confparser {
 				currentScope = currentScope->GetParent();
 				break;
 			default: {
-				if (currentScope->TokenCallback(tokenizedText)) continue;
-
 				if (KeywordsMap.find(tokenizedText[0]) != KeywordsMap.end()) {
 					KeywordsMap[tokenizedText[0]](this, &currentScope, tokenizedText);
 					continue;
@@ -332,7 +372,7 @@ namespace confparser {
 			}break;
 			}
 		}
-		return ret;
+		return ret;<
 	}
 
 	ConfScope* ConfParser::GetNewIntrinsicScope() {

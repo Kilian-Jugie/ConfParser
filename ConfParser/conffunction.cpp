@@ -3,6 +3,10 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
+/*!
+ * \file conffunction.cpp
+ * \brief Fonctions related implementations
+ */
 
 #include "conffunction.hpp"
 

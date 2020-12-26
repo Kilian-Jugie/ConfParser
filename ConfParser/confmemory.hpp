@@ -3,6 +3,10 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
+/*!
+ * \file confmemory.hpp
+ * \brief Unused possible future memory management implementation
+ */
 
 #pragma once
 #include <unordered_map>

@@ -3,6 +3,10 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
+/*!
+ * \file global.hpp
+ * \brief Contain global definitions and constats which could be used anywhere
+*/
 
 #pragma once
 #include <unordered_map>
@@ -69,27 +73,63 @@ namespace confparser {
 
 	constexpr char_t TOKENS_STRING_KEYWORD_CLASS[] = CP_TEXT("class");
 
-	
-
 	enum class CodeObjectType {
-		TYPE,
-		INSTANCE,
-		RVALUE,
-		FUNCTION,
-		SCOPE,
-		NONE
+		TYPE, //! \see ConfType
+		INSTANCE, //! \see ConfInstance
+		RVALUE, //! Temporary value (\see ConfScopeable.IsTemp)
+		FUNCTION, //! \see ConfFunctionExtrinsic
+		SCOPE, //! \see ConfScope
+		NONE //Used in filters or error detection
 	};
 
+	/*!
+	 * \brief Remove any \r char
+	 * \param str String where to remove chars
+	*/
 	void removeCariageReturn(string_t& str);
+
+	/*!
+	 * \brief Remove first and last char as they are quotes
+	 * \param str The string to remove the chars from
+	 * \todo uniformization
+	*/
 	void unStringify(string_t& str);
+
+	/*!
+	 * \brief Remove first and last char as they are quotes
+	 * \param str The string to remove the chars from
+	 * \return A copy of str without quotes
+	 * \todo uniformization
+	*/
 	string_t unStringify(const string_t& str);
+
+	/*!
+	 * \brief Remove trailing and front spaces and tab
+	 * \param str The string to remove from
+	 * \todo isspace
+	 * \todo one pass
+	*/
 	void trim(string_t& str);
+
+	/*!
+	 * \brief Split a string into string array following filters
+	 * \param from String to split
+	 * \param filters Filters to split
+	 * \deprecated Will be replaced by filtersplit
+	*/
 	std::vector<string_t> advsplit(const string_t& from, const string_t& filters);
 
-	//TODO: operators ?
-	//TODO: condition fusion ?
+	/*!
+	 * \brief Wrapper for multiple filter methods for filtersplit
+	 * 
+	 * \todo operators ?
+	 * \todo condition fusion ?
+	 */
 	class FilterSplitFilter {
 	public:
+		/*!
+		 * \brief Returns if we must keep the char or skip it when split
+		*/
 		using conditionfnc_t = bool(*)(char_t);
 
 		FilterSplitFilter(conditionfnc_t cond) {
@@ -100,16 +140,32 @@ namespace confparser {
 			m_CharMap[ch] = keep;
 		}
 
+		/*!
+		 * \brief Contruct filters from char array
+		 * \param str Contains each chars where we must split and with default keep condition
+		 * \param keep Shall we keep chars or not in split
+		*/
 		FilterSplitFilter(const string_t& str, bool keep = false) {
 			for (const auto& it : str) m_CharMap[it] = keep;
 		}
 
+		/*!
+		 * \brief Construct filters from char array with custom keep conditions and default
+		 * \param str Contains each chars where we must split
+		 * \param keep Arrays of bool with index-equivalent keep condition for str. If outofbound, keepDefault used
+		 * \param keepDefault Default keep condition if keep isn't defined for all str indexes
+		*/
 		FilterSplitFilter(const std::string& str, const std::vector<bool>& keep, bool keepDefault = false) {
 			for (int i{ 0 }; i < str.size(); ++i) {
 				m_CharMap[str[i]] = i < keep.size() ? keep[i] : keepDefault;
 			}
 		}
 
+		/*!
+		 * \brief Check for a char and returns if split and keep needed
+		 * \param ch The char to check to
+		 * \return A pair where first is shall we split and second is shall we keep the char
+		*/
 		std::pair<bool, bool> check(char_t ch) {
 			for (const auto& it : m_FncList) {
 				if (it(ch)) return { true,false };
@@ -123,9 +179,18 @@ namespace confparser {
 		std::vector<conditionfnc_t> m_FncList;
 	};
 
-	//Here we need universal reference because some values are passed as rvalue reference & some as const
-	//lvalue references
-	//TODO: SFINAE !
+	/*!
+	 * \brief Split using filters
+	 * \param in The string to split from
+	 * \param condition The filters for split
+	 * \param useStrings Strings litterals ('"' surrounded chars) aren't threated
+	 * \param keepStringChar Should the '"' be keeped ?
+	 * 
+	 * Universal reference to allows perfect forward but we need const lvalue ref compatibility
+	 * 
+	 * \todo sfinae on _StrTy enable_if decay(in) is string_t constructible
+	 * \
+	*/
 	template<typename _StrTy>
 	std::vector<string_t> filtersplit(_StrTy&& in, FilterSplitFilter condition,
 		bool useStrings = false, bool keepStringChar = false) {

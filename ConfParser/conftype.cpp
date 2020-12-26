@@ -3,7 +3,10 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
-
+/*!
+ * \file conftype.cpp
+ * \brief Types related implementations
+ */
 #include "conftype.hpp"
 #include "confinstance.hpp"
 #include <cctype>

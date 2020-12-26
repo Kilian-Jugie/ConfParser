@@ -3,12 +3,24 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
+/*!
+ * \file confinstance.hpp
+ * \brief Instances related definitions
+ */
 
 #pragma once
 #include "global.hpp"
 #include "confscopeable.hpp"
+#include <string>
+#include <cassert>
 
 namespace confparser {
+	/*!
+	 * \brief In-code instance of an object
+	 * 
+	 * An instance is only a container of sub-instances and does not
+	 * contain real data.
+	 */
 	class ConfInstance : public ConfScopeable {
 	protected:
 		std::vector<ConfInstance*> m_SubInstances;
@@ -23,6 +35,9 @@ namespace confparser {
 			ClearSubInstances();
 		}
 
+		/*!
+		 * \brief Safe delete all subinstances
+		 */
 		void ClearSubInstances() {
 			for (auto it : m_SubInstances) {
 				CP_SF(it);
@@ -35,10 +50,22 @@ namespace confparser {
 		}
 
 		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
+
+		/*!
+		 * \brief Get a subinstance by its name
+		 * \param memberName The name of the subinstance
+		*/
 		virtual ConfInstance* GetMember(const string_t& memberName);
 
+		/*!
+		 * \brief Get a method by its name
+		 * \param funcName The name of the method to get
+		*/
 		virtual ConfFunctionIntrinsic* GetFunction(const string_t& funcName);
 
+		/*!
+		 * \brief [Unused: to be removed] Get the memory cost of the instance
+		*/
 		virtual std::size_t GetSize() const {
 			return 0;
 		}
@@ -59,111 +86,74 @@ namespace confparser {
 			m_SubInstances = inst->m_SubInstances;
 			return *this;
 		}
+
+		virtual void SetFromString(const string_t& v) {
+			//Possible alternative : Anonymous structure ?
+			assert(false && "SetFromString is reserved for intrinsic usage");
+		}
 	};
 
-	class ConfIntrinsicInstance : public ConfInstance {
+	/*!
+	 * \brief In-code accessible instance of an object
+	 *
+	 * Instance of an intrinsic type. These instances, unlike others, contains
+	 * data in a form which depends of their type.
+	 */
+	template<typename _Ty>class ConfIntrinsicInstance : public ConfInstance {
+	protected:
+		_Ty m_Data;
 	public:
-		ConfIntrinsicInstance(ConfType* strType, string_t name) : ConfInstance{ strType,std::move(name) } {
+		ConfIntrinsicInstance<_Ty>(ConfType* strType, string_t name) : ConfInstance{ strType,std::move(name) } {
 
 		}
 
-		virtual void SetFromString(const string_t& v);
-	};
-
-	class ConfInstanceString : public ConfIntrinsicInstance {
-		string_t m_Data;
-	public:
-		ConfInstanceString(ConfType* strType, string_t name) :
-			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ CP_TEXT("") } {
+		/*!
+		 * \brief Set the raw value
+		 * \param data The new value
+		*/
+		inline void Set(_Ty data) {
+			m_Data = data;
 		}
 
-		void Set(string_t newData) {
-			m_Data = newData;
-		}
-
-		string_t Get() const {
+		/*!
+		 * \brief Get the raw value
+		*/
+		inline _Ty Get() const {
 			return m_Data;
 		}
 
-		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
-
-		virtual ConfInstance& operator=(ConfInstance* inst) override {
-			ConfInstance::operator=(inst);
-			m_Data = static_cast<ConfInstanceString*>(inst)->m_Data;
-			return *this;
+		/*!
+		 * \brief Set the raw value from a string
+		 * 
+		 * This function is intended to be template specialized for each
+		 * possible raw value type
+		 * 
+		 * \param v The string to set the value from
+		*/
+		virtual void SetFromString(const string_t& v) override final {
+			ConfInstance::SetFromString(v);
 		}
-
-		virtual void SetFromString(const string_t& v) override;
 	};
 
-	class ConfInstanceInt : public ConfIntrinsicInstance {
-		int m_Data;
-	public:
-		ConfInstanceInt(ConfType* strType, string_t name) :
-			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ 0 } {
-		}
+	using ConfInstanceString = ConfIntrinsicInstance<string_t>;
+	using ConfInstanceInt = ConfIntrinsicInstance<int>;
+	using ConfInstanceFloat = ConfIntrinsicInstance<float>;
+	using ConfInstanceObject = ConfIntrinsicInstance<ConfInstance*>;
 
-		void Set(int newData) {
-			m_Data = newData;
-		}
+	template<> void ConfInstanceString::SetFromString(const string_t& v) {
+		m_Data = v;
+	}
 
-		int Get() const {
-			return m_Data;
-		}
+	template<> void ConfInstanceInt::SetFromString(const string_t& v) {
+		m_Data = std::stoi(v);
+	}
 
-		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
+	template<> void ConfInstanceFloat::SetFromString(const string_t& v) {
+		m_Data = std::stof(v);
+	}
 
-		virtual ConfInstance& operator=(ConfInstance* inst) override {
-			ConfInstance::operator=(inst);
-			m_Data = static_cast<ConfInstanceInt*>(inst)->m_Data;
-			return *this;
-		}
-
-		virtual void SetFromString(const string_t& v) override;
-	};
-
-	class ConfInstanceFloat : public ConfIntrinsicInstance {
-		float m_Data;
-	public:
-		ConfInstanceFloat(ConfType* strType, string_t name) :
-			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ 0.f } {
-		}
-
-		void Set(float newData) {
-			m_Data = newData;
-		}
-
-		float Get() const {
-			return m_Data;
-		}
-
-		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
-
-		virtual ConfInstance& operator=(ConfInstance* inst) override {
-			ConfInstance::operator=(inst);
-			m_Data = static_cast<ConfInstanceFloat*>(inst)->m_Data;
-			return *this;
-		}
-
-		virtual void SetFromString(const string_t& v) override;
-	};
-
-	class ConfInstanceObject : public ConfIntrinsicInstance {
-		ConfInstance* m_Data;
-	public:
-		ConfInstanceObject(ConfType* strType, string_t name) :
-			ConfIntrinsicInstance{ strType,std::move(name) }, m_Data{ nullptr } {
-		}
-
-		void Set(ConfInstance* newData) {
-			m_Data = newData;
-		}
-
-		ConfInstance* Get() const {
-			return m_Data;
-		}
-
-		virtual ConfScopeable* Clone(string_t name, ConfScopeable* buf = nullptr) const override;
-		virtual void SetFromString(const string_t& v) override;
-	};
+	template<> void ConfInstanceObject::SetFromString(const string_t& v) {
+		//Peek instance addr by scope lookaround
+		assert(false && "WIP");
+	}
 }

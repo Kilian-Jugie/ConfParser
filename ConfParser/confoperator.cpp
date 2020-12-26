@@ -3,6 +3,10 @@
 * Unauthorized copying of this file, via any medium is strictly prohibited
 * Proprietary and confidential
 */
+/*!
+ * \file confoperator.cpp
+ * \brief Operators related implementations
+ */
 
 #include "confoperator.hpp"
 #include <string>
